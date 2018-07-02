@@ -32,10 +32,11 @@ esac
 
 TRAIN_DIR=logs/${NET}
 CHECKPOINT_PATH=checkpoints/ssd_300_${NET}/ssd_300_${NET}.ckpt
+CHECKPOINT_PATH=checkpoints/${NET}/${NET}.ckpt
 MODEL_NAME=ssd_300_${NET}
 
-#	--checkpoint_exclude_scopes=ssd_300_mobilenetv1/block11_box,ssd_300_mobilenetv1/block13_box,ssd_300_mobilenetv1/block14_box,ssd_300_mobilenetv1/block15_box,ssd_300_mobilenetv1/block16_box,ssd_300_mobilenetv1/block17_box \
-#    --trainable_scopes=ssd_300_mobilenetv1/block11_box,ssd_300_mobilenetv1/block13_box,ssd_300_mobilenetv1/block14_box,ssd_300_mobilenetv1/block15_box,ssd_300_mobilenetv1/block16_box,ssd_300_mobilenetv1/block17_box \
+#    --checkpoint_exclude_scopes=ssd_300_mobilenetv1/block11_box/conv_cls,ssd_300_mobilenetv1/block13_box/conv_cls,ssd_300_mobilenetv1/block14_box,ssd_300_mobilenetv1/block15_box/conv_cls,ssd_300_mobilenetv1/block16_box/conv_cls,ssd_300_mobilenetv1/block17_box/conv_cls \
+#    --trainable_scopes=ssd_300_mobilenetv1/block11_box/conv_cls,ssd_300_mobilenetv1/block13_box/conv_cls,ssd_300_mobilenetv1/block14_box/conv_cls,ssd_300_mobilenetv1/block15_box/conv_cls,ssd_300_mobilenetv1/block16_box/conv_cls,ssd_300_mobilenetv1/block17_box/conv_cls \
 CUDA_VISIBLE_DEVICES=${GPU_ID} python train_ssd_network.py \
     --train_dir=${TRAIN_DIR} \
     --dataset_dir=${DATASET_DIR} \
@@ -43,6 +44,7 @@ CUDA_VISIBLE_DEVICES=${GPU_ID} python train_ssd_network.py \
     --dataset_split_name=train \
     --model_name=${MODEL_NAME} \
     --checkpoint_path=${CHECKPOINT_PATH} \
+    --checkpoint_exclude_scopes=ssd_300_mobilenetv1/block11_box,ssd_300_mobilenetv1/block13_box,ssd_300_mobilenetv1/block14,ssd_300_mobilenetv1/block15,ssd_300_mobilenetv1/block16,ssd_300_mobilenetv1/block17,ssd_300_mobilenetv1/block14_box,ssd_300_mobilenetv1/block15_box,ssd_300_mobilenetv1/block16_box,ssd_300_mobilenetv1/block17_box\
     --save_summaries_secs=60 \
     --save_interval_secs=600 \
     --weight_decay=0.0005 \
@@ -51,7 +53,7 @@ CUDA_VISIBLE_DEVICES=${GPU_ID} python train_ssd_network.py \
     --learning_rate_decay_type=polynomial \
     --end_learning_rate=0.0001 \
     --max_number_of_steps=5000 \
-    --batch_size=32
+    --batch_size=16
 
 EVAL_DIR=${TRAIN_DIR}/eval
 CUDA_VISIBLE_DEVICES=${GPU_ID} python eval_ssd_network.py \
