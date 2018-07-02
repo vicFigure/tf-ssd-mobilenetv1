@@ -36,30 +36,31 @@ MODEL_NAME=ssd_300_${NET}
 
 #	--checkpoint_exclude_scopes=ssd_300_mobilenetv1/block11_box,ssd_300_mobilenetv1/block13_box,ssd_300_mobilenetv1/block14_box,ssd_300_mobilenetv1/block15_box,ssd_300_mobilenetv1/block16_box,ssd_300_mobilenetv1/block17_box \
 #    --trainable_scopes=ssd_300_mobilenetv1/block11_box,ssd_300_mobilenetv1/block13_box,ssd_300_mobilenetv1/block14_box,ssd_300_mobilenetv1/block15_box,ssd_300_mobilenetv1/block16_box,ssd_300_mobilenetv1/block17_box \
-python train_ssd_network.py \
+CUDA_VISIBLE_DEVICES=${GPU_ID} python train_ssd_network.py \
     --train_dir=${TRAIN_DIR} \
     --dataset_dir=${DATASET_DIR} \
     --dataset_name=${TRAIN_DATASET} \
     --dataset_split_name=train \
     --model_name=${MODEL_NAME} \
     --checkpoint_path=${CHECKPOINT_PATH} \
-	--save_summaries_secs=60 \
+    --save_summaries_secs=60 \
     --save_interval_secs=600 \
     --weight_decay=0.0005 \
     --optimizer=adam \
     --learning_rate=0.001 \
-    --num_epochs_per_decay=10 \
-	--max_number_of_steps=1000 \
+    --learning_rate_decay_type=polynomial \
+    --end_learning_rate=0.0001 \
+    --max_number_of_steps=5000 \
     --batch_size=32
 
 EVAL_DIR=${TRAIN_DIR}/eval
-python eval_ssd_network.py \
+CUDA_VISIBLE_DEVICES=${GPU_ID} python eval_ssd_network.py \
     --eval_dir=${EVAL_DIR} \
     --dataset_dir=${DATASET_DIR} \
     --dataset_name=${TEST_DATASET} \
     --dataset_split_name=test \
     --model_name=${MODEL_NAME} \
     --checkpoint_path=${TRAIN_DIR} \
-    --wait_for_checkpoints=True \
+    --wait_for_checkpoints=False \
     --batch_size=1 \
-    --max_num_batches=500
+    --max_num_batches=5000
