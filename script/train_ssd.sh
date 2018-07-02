@@ -63,4 +63,4 @@ CUDA_VISIBLE_DEVICES=${GPU_ID} python eval_ssd_network.py \
     --checkpoint_path=${TRAIN_DIR} \
     --wait_for_checkpoints=False \
     --batch_size=1 \
-    --max_num_batches=5000
+    --max_num_batches=4952
