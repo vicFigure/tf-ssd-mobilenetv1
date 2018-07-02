@@ -113,12 +113,12 @@ class SSDNet(object):
         #               (162., 213.),
         #               (213., 264.),
         #               (264., 315.)],
-        anchor_ratios=[[2],
+        anchor_ratios=[[2, .5],
                        [2, .5, 3, 1./3],
                        [2, .5, 3, 1./3],
                        [2, .5, 3, 1./3],
-                       [2, .5, 3, 1./3],
-                       [2, .5, 3, 1./3]],
+                       [2, .5],
+                       [2, .5]],
         anchor_steps=[8, 16, 32, 64, 100, 300],
         anchor_offset=0.5,
         normalizations=[-1, -1, -1, -1, -1, -1],
@@ -418,14 +418,14 @@ def ssd_multibox_layer(inputs,
     # Location.
     num_loc_pred = num_anchors * 4
     print("num_loc_pred", num_loc_pred)
-    loc_pred = slim.conv2d(net, num_loc_pred, [1, 1], activation_fn=None,
+    loc_pred = slim.conv2d(net, num_loc_pred, [3, 3], activation_fn=None,
                            scope='conv_loc')
     loc_pred = custom_layers.channel_to_last(loc_pred)
     loc_pred = tf.reshape(loc_pred,
                           tensor_shape(loc_pred, 4)[:-1]+[num_anchors, 4])
     # Class prediction.
     num_cls_pred = num_anchors * num_classes
-    cls_pred = slim.conv2d(net, num_cls_pred, [1, 1], activation_fn=None,
+    cls_pred = slim.conv2d(net, num_cls_pred, [3, 3], activation_fn=None,
                            scope='conv_cls')
     cls_pred = custom_layers.channel_to_last(cls_pred)
     cls_pred = tf.reshape(cls_pred,
