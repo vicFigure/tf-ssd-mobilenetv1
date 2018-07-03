@@ -32,7 +32,7 @@ esac
 
 CHECKPOINT_PATH=checkpoints/VGG_VOC0712_SSD_300x300_ft_iter_120000.ckpt/VGG_VOC0712_SSD_300x300_ft_iter_120000.ckpt
 CHECKPOINT_PATH=checkpoints/ssd_300_${NET}/ssd_300_${NET}.ckpt
-#CHECKPOINT_PATH=logs/${NET}/model.ckpt-42203
+CHECKPOINT_PATH=logs/${NET}/model.ckpt-16587
 TRAIN_DIR=logs/${NET}
 MODEL_NAME=ssd_300_${NET}
 
