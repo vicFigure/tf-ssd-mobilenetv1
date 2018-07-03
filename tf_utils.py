@@ -23,6 +23,8 @@ from pprint import pprint
 
 import tensorflow as tf
 from tensorflow.contrib.slim.python.slim.data import parallel_reader
+from tensorflow.python.training import saver as tf_saver
+from tensorflow.python import pywrap_tensorflow
 
 slim = tf.contrib.slim
 
@@ -187,6 +189,82 @@ def update_model_scope(var, ckpt_scope, new_scope):
     return var.op.name.replace(new_scope,'vgg_16')
 
 
+def get_init_fn_forKD(flags):
+    var_dict = {}
+    teacher_model = 'logs/vgg/model.ckpt-5000'
+    try:
+      reader = pywrap_tensorflow.NewCheckpointReader(teacher_model)
+      var_dict = reader.get_variable_to_shape_map()
+    except Exception as e:  # pylint: disable=broad-except
+      print(str(e))
+      if "corrupted compressed block contents" in str(e):
+       print("It's likely that your checkpoint file has been compressed "
+              "with SNAPPY.")
+
+    variables_to_restore = {}
+#    variables = tf.global_variables() 
+    variables = slim.get_model_variables()
+    for var in variables:
+      if not 'Teacher' in var.name:
+        continue
+      if 'Momentum' in var.name:
+        continue
+      if 'Adam' in var.name:
+	    continue
+      print(var.name.split(':')[0])
+      var_name = var.name.split(':')[0].strip('Teacher').lstrip('/')
+      var_name = 'ssd_300_vgg/' + var_name
+      if var_name in var_dict:
+        print('Variables restored: %s' % var.name)
+        variables_to_restore.update({var_name: var})
+
+    print('0000000')
+    restorer = tf_saver.Saver(variables_to_restore)
+    print('1111111')
+    def restore_teacher_net(session):
+      restorer.restore(session, teacher_model)
+      print('Only Teacher net loaded')
+    print(flags.checkpoint_path)
+    if flags.checkpoint_path is None:
+        return restore_teacher_net
+    exclusions = []
+    if flags.checkpoint_exclude_scopes:
+        exclusions = [scope.strip()
+                      for scope in flags.checkpoint_exclude_scopes.split(',')]
+
+    # TODO(sguada) variables.filter_variables()
+    variables_to_restore = []
+    for var in variables:
+        if 'Teacher' in var.name:
+          continue
+        excluded = False
+        for exclusion in exclusions:
+            if var.op.name.startswith(exclusion):
+                excluded = True
+                break
+        if not excluded:
+            variables_to_restore.append(var)
+    # Change model scope if necessary.
+    if flags.checkpoint_model_scope is not None:
+        variables_to_restore = \
+            {var.op.name.replace(flags.model_name,
+                                 flags.checkpoint_model_scope): var
+             for var in variables_to_restore}
+
+    if tf.gfile.IsDirectory(flags.checkpoint_path):
+        checkpoint_path = tf.train.latest_checkpoint(flags.checkpoint_path)
+    else:
+        checkpoint_path = flags.checkpoint_path
+    tf.logging.info('Fine-tuning from %s. Ignoring missing vars: %s' % (checkpoint_path, flags.ignore_missing_vars))
+    restorer_student = tf_saver.Saver(variables_to_restore)
+    def restore_KD_net(session):
+      restorer.restore(session, teacher_model)
+      restorer_student.restore(session, checkpoint_path)
+      print('All KD net loaded.')
+    return restore_KD_net
+
+
+
 def get_init_fn(flags):
     """Returns a function run by the chief worker to warm-start the training.
     Note that the init_fn is only run when initializing the model during the very
@@ -195,8 +273,6 @@ def get_init_fn(flags):
     Returns:
       An init function run by the supervisor.
     """
-    if flags.checkpoint_path is None:
-        return None
     # Warn the user if a checkpoint exists in the train_dir. Then ignore.
     if tf.train.latest_checkpoint(flags.train_dir):
         tf.logging.info(
@@ -204,6 +280,11 @@ def get_init_fn(flags):
             % flags.train_dir)
         return None
 
+    if flags.model_name=='ssd_300_kd_mobilenet':
+        return get_init_fn_forKD(flags)
+
+    if flags.checkpoint_path is None:
+        return None
     exclusions = []
     if flags.checkpoint_exclude_scopes:
         exclusions = [scope.strip()

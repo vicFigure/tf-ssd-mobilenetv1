@@ -508,6 +508,9 @@ def ssd_net(inputs,
             predictions.append(prediction_fn(p))
             logits.append(p)
             localisations.append(l)
+#        end_points['logits'] = logits
+#        end_points['predictions'] = predictions
+#        end_points['localisations'] = localisations
 
         return predictions, localisations, logits, end_points
 ssd_net.default_image_size = 300

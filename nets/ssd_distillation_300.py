@@ -8,6 +8,8 @@ import tf_extended as tfe
 from nets import custom_layers
 from nets import ssd_common
 from nets import ssd_mobilenetv1_300
+from nets import ssd_vgg_300
+from nets import np_methods
 
 import mobilenet_v1
 
@@ -82,8 +84,10 @@ class SSDNet(object):
             self.params = params
         else:
             self.params = SSDNet.default_params
-		self.teacher_model = ssd_mobilenet_300
-        self.student_model = ssd_mobilenet_300
+        self.student_model = ssd_mobilenetv1_300.SSDNet(self.params)
+        self.teacher_model = ssd_vgg_300.SSDNet()
+        self.teacher_kd_layer = {}
+        self.student_kd_layer = {}
 
     # ======================================================================= #
     def net(self, inputs,
@@ -95,38 +99,24 @@ class SSDNet(object):
             scope='ssd_300_mobilenetv1'):
         """SSD network definition.
         """
-        student_r = self.student_model.ssd_net(inputs,
-                    num_classes=self.params.num_classes,
-                    feat_layers=self.params.feat_layers,
-                    anchor_sizes=self.params.anchor_sizes,
-                    anchor_ratios=self.params.anchor_ratios,
-                    normalizations=self.params.normalizations,
-                    is_training=is_training,
-                    dropout_keep_prob=dropout_keep_prob,
-                    prediction_fn=prediction_fn,
-                    reuse=reuse,
-                    scope=scope)
-		self.student_endpoints = student_r[-1]
+        self.is_training = is_training
+        student_r = self.student_model.net(inputs,is_training=is_training, scope=scope)
+        self.student_kd_layer['logits'] = student_r[2]
+        self.student_kd_layer['predictions'] = student_r[0]
+        self.student_kd_layer['localisations'] = student_r[1]
+        self.student_endpoints = student_r[-1]
         # Update feature shapes (try at least!)
         if update_feat_shapes:
             shapes = ssd_feat_shapes_from_net(student_r[0], self.params.feat_shapes)
             self.params = self.params._replace(feat_shapes=shapes)
         print("feat_shapes",self.params.feat_shapes)
-		if is_training:
-		  teacher_r = self.teacher_model.ssd_net(inputs,
-                    num_classes=self.params.num_classes,
-                    feat_layers=self.params.feat_layers,
-                    anchor_sizes=self.params.anchor_sizes,
-                    anchor_ratios=self.params.anchor_ratios,
-                    normalizations=self.params.normalizations,
-                    is_training=is_training,
-                    dropout_keep_prob=dropout_keep_prob,
-                    prediction_fn=prediction_fn,
-                    reuse=reuse,
-                    scope=scope)
-          self.teacher_endpoints = teacher_r[-1]
-
-        return student_net
+        if is_training:
+            teacher_r = self.teacher_model.net(inputs, is_training=False, scope='Teacher')
+            self.teacher_kd_layer['logits'] = teacher_r[2]
+            self.teacher_kd_layer['predictions'] = teacher_r[0]
+            self.teacher_kd_layer['localisations'] = teacher_r[1]
+            self.teacher_endpoints = teacher_r[-1]
+        return student_r
 
     def arg_scope(self, weight_decay=0.0005, data_format='NHWC'):
         """Network arg_scope.
@@ -200,9 +190,62 @@ class SSDNet(object):
         return rscores, rbboxes
 
 
-    def ssd_KD_loss():
-        
-        tf.losses.add_loss(loss)
+
+    def ssd_KD_loss(self, kd_lambda=1, scope='KD_loss'):
+      # threshold for the select bbox
+      threshold = 0.5
+      with tf.variable_scope(scope, 'KD_loss'):
+        # Get the teacher's prediction, and flatten them
+        """
+        we neet do the process separable to samples, 
+        for example, we should  do nms in the output of one image, so we can't concat all the default box -- we should reshape the output to [batchsize, #of deault_box, 4/21],
+        """
+        t_logits = self.teacher_kd_layer['logits']
+        t_localisations = self.teacher_kd_layer['localisations']
+        t_predictions = self.teacher_kd_layer['predictions']
+        batch_size = t_logits[0].shape[0]
+        t_flogits = []
+        t_fpredictions = []
+        t_flocalisations = []
+        for i in range(len(t_logits)):
+            t_flogits.append(tf.reshape(t_logits[i], [batch_size, -1, self.params.num_classes]))
+            t_flocalisations.append(tf.reshape(t_localisations[i], [batch_size, -1, 4]))
+            t_fpredictions.append(tf.reshape(t_predictions[i], [batch_size, -1, self.params.num_classes]))
+
+		# Now select the prior box for guidance
+        mask = []
+        self.anchors = self.anchors(self.params.img_shape)
+        for i in range(len(t_logits)):
+            mask_layer = select_layer_mask(t_fpredictions[i], t_localisations[i], self.anchors[i], threshold)
+            mask.append(mask_layer)
+
+		# Now we can define the KD-loss
+        dtype = t_logits[0].dtype
+        t_predictions = tf.concat(t_fpredictions, axis=1)
+        t_localisations = tf.concat(t_flocalisations, axis=1)
+        s_predictions = self.student_kd_layer['predictions']
+        s_localisations = self.student_kd_layer['localisations']
+        s_logits = self.student_kd_layer['logits']
+        s_flocalisations = []
+        s_fpredictions = []
+        for i in range(len(s_logits)):
+            s_flocalisations.append(tf.reshape(s_localisations[i], [batch_size, -1, 4]))
+            s_fpredictions.append(tf.reshape(s_predictions[i], [batch_size, -1, self.params.num_classes]))
+        s_predictions = tf.concat(s_fpredictions, axis=1)
+        s_localisations = tf.concat(s_flocalisations, axis=1)
+        mask = tf.concat(mask, axis=1)
+        fmask = tf.cast(mask, dtype)
+
+        N = tf.reduce_sum(tf.cast(mask, dtype))
+        weights = kd_lambda * fmask
+        with tf.name_scope('KD_mean_square_error_predictions'):
+            loss = tf.reduce_mean(tf.square(t_predictions - s_predictions))
+            loss = tf.div(tf.reduce_sum(loss * weights), N, name='value')
+            tf.losses.add_loss(loss)
+	    with tf.name_scope('KD_mean_square_error_localisations'):
+			loss = tf.reduce_mean(tf.square(t_localisations - s_localisations))
+            loss = tf.div(tf.reduce_sum(loss * weights), N, name='value')
+            tf.losses.add_loss(loss)
 
     def losses(self, logits, localisations,
                gclasses, glocalisations, gscores,
@@ -213,19 +256,69 @@ class SSDNet(object):
                scope='ssd_losses'):
         """Define the SSD network losses.
         """
-		ori_loss = self.student_model.ssd_losses(logits, localisations,
+        ori_loss = self.student_model.losses(logits, localisations,
                           gclasses, glocalisations, gscores,
                           match_threshold=match_threshold,
                           negative_ratio=negative_ratio,
                           alpha=alpha,
                           label_smoothing=label_smoothing,
                           scope=scope)
-        KD_loss = self.ssd_KD_loss()
+        if self.is_training:
+          KD_loss = self.ssd_KD_loss(scope='KD_loss')
 
 
 # =========================================================================== #
 # SSD tools...
 # =========================================================================== #
+def select_layer_mask(predictions_layer, localisation_layer, anchor_layer, threshold=0.5):
+    """
+	1. we delete the background bbox: predict is class 0
+	2. we delete the bbox whose prediction < threshold
+	3. we do nms delete useless bbox. NOTICE: we do nms in one image, that is we should deal separated in batch_size dimension
+	Input:
+	    predictions_layer: flattened [batchsize, #default_box, 21]
+   	    localisation_layer: not flattened, 5 dimensions
+	    bbox: reshape to 3 dimensions 
+	"""
+    classes = tf.argmax(predictions_layer, axis=2)
+    scores = tf.reduce_max(predictions_layer, axis=2)
+    # step 1
+    scores = scores * tf.cast(classes>0, scores.dtype)
+    # step 2
+    mask = tf.greater(scores, threshold)
+    # step 3
+    bbox = ssd_common.tf_ssd_bboxes_decode_layer(localisation_layer, anchor_layer)
+    bbox = tf.reshape(bbox, [bbox.shape[0], -1, bbox.shape[-1]])
+    nms_mask = tf.py_func(feature_nms, [predictions_layer, classes, bbox, 0.45], tf.bool)
+    mask = tf.logical_and(mask, nms_mask)
+    return mask
+
+	
+def feature_nms(predictions, classes, bbox, nms_threshold=0.45):
+    batch_size = predictions.shape[0]
+    num_defaultbox = predictions.shape[1]
+    scores = np.amax(predictions, axis=2)
+    mask = np.ones([batch_size, num_defaultbox], dtype=np.bool)
+    
+    #deal with one image
+    for n in range(batch_size-1):
+        score_batch = scores[n,:]
+        index = np.argsort(-score_batch)
+        bbox_batch = bbox[n,index,:]
+        class_batch = classes[n,index]
+        # do the nms
+        for i in range(num_defaultbox-1):
+            keep_bboxes = np.ones([num_defaultbox], dtype=np.bool)
+            if keep_bboxes[i]:
+                # Computer overlap with bboxes which are following.
+                overlap = np_methods.bboxes_jaccard(bbox_batch[i], bbox_batch[(i+1):])
+                # Overlap threshold for keeping + checking part of the same class
+                keep_overlap = np.logical_or(overlap < nms_threshold, class_batch[(i+1):] != class_batch[i])
+                keep_bboxes[(i+1):] = np.logical_and(keep_bboxes[(i+1):], keep_overlap)
+        # update the mask
+        mask[n,:] = np.logical_and(mask[n,:], keep_bboxes[index])	
+	return mask
+	
 def ssd_size_bounds_to_values(size_bounds,
                               n_feat_layers,
                               img_shape=(300, 300)):
@@ -454,3 +547,15 @@ def ssd_arg_scope_caffe(caffe_scope):
                     return sc
 
 
+def ssd_net(inputs,
+            num_classes=SSDNet.default_params.num_classes,
+            feat_layers=SSDNet.default_params.feat_layers,
+            anchor_sizes=SSDNet.default_params.anchor_sizes,
+            anchor_ratios=SSDNet.default_params.anchor_ratios,
+            normalizations=SSDNet.default_params.normalizations,
+            is_training=True,
+            dropout_keep_prob=0.5,
+            prediction_fn=slim.softmax,
+            reuse=None,
+            scope='ssd_300_mobilenetv1'):
+    return SSDNet.net(inputs)

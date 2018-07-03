@@ -49,6 +49,7 @@ def get_preprocessing(name, is_training=False):
         'ssd_300_vgg': ssd_vgg_preprocessing,
         'ssd_512_vgg': ssd_vgg_preprocessing,
         'ssd_300_mobilenetv1': ssd_mobilenetv1_preprocessing,
+        'ssd_300_kd_mobilenet': ssd_mobilenetv1_preprocessing,
     }
 
     if name not in preprocessing_fn_map:
