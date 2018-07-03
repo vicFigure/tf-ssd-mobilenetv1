@@ -52,7 +52,7 @@ CUDA_VISIBLE_DEVICES=${GPU_ID} python train_ssd_network.py \
     --learning_rate=0.001 \
     --learning_rate_decay_type=polynomial \
     --end_learning_rate=0.0001 \
-    --max_number_of_steps=5000 \
+    --max_number_of_steps=300000 \
     --batch_size=16
 
 EVAL_DIR=${TRAIN_DIR}/eval
