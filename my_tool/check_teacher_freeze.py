@@ -13,7 +13,7 @@ from tensorflow.python.ops import state_ops
 
 
 teacher_checkpoint = 'logs/vgg/model.ckpt-5000'
-kd_checkpoint = 'logs/kd_mobilenet/model.ckpt-0'
+kd_checkpoint = 'logs/kd_mobilenet/model.ckpt-20'
 
 
 def no_use_var(name):

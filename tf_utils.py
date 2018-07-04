@@ -210,9 +210,9 @@ def get_init_fn_forKD(flags):
         continue
       if 'Adam' in var.name:
 	    continue
-      print(var.name.split(':')[0])
-      var_name = var.name.split(':')[0].strip('Teacher').lstrip('/')
+      var_name = var.name.split(':')[0].lstrip('Teacher').lstrip('/')
       var_name = 'ssd_300_vgg/' + var_name
+      print(var_name)
       if var_name in var_dict:
         print('Variables restored: %s' % var.name)
         variables_to_restore.update({var_name: var})
