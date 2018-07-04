@@ -403,6 +403,7 @@ def ssd_multibox_layer(inputs,
                        sizes,
                        ratios=[1],
                        normalization=-1,
+					   is_training=True,
                        bn_normalization=False):
     """Construct a multibox layer, return a class and localization predictions.
     """
@@ -414,14 +415,14 @@ def ssd_multibox_layer(inputs,
 
     # Location.
     num_loc_pred = num_anchors * 4
-    loc_pred = slim.conv2d(net, num_loc_pred, [3, 3], activation_fn=None,
+    loc_pred = slim.conv2d(net, num_loc_pred, [3, 3], activation_fn=None, trainable=is_training,
                            scope='conv_loc')
     loc_pred = custom_layers.channel_to_last(loc_pred)
     loc_pred = tf.reshape(loc_pred,
                           tensor_shape(loc_pred, 4)[:-1]+[num_anchors, 4])
     # Class prediction.
     num_cls_pred = num_anchors * num_classes
-    cls_pred = slim.conv2d(net, num_cls_pred, [3, 3], activation_fn=None,
+    cls_pred = slim.conv2d(net, num_cls_pred, [3, 3], activation_fn=None, trainable=is_training,
                            scope='conv_cls')
     cls_pred = custom_layers.channel_to_last(cls_pred)
     cls_pred = tf.reshape(cls_pred,
@@ -440,12 +441,13 @@ def ssd_net(inputs,
             prediction_fn=slim.softmax,
             reuse=None,
             scope='ssd_300_vgg'):
-    """SSD net definition.
-    """
-    # if data_format == 'NCHW':
-    #     inputs = tf.transpose(inputs, perm=(0, 3, 1, 2))
+  """SSD net definition.
+  """
+  # if data_format == 'NCHW':
+  #     inputs = tf.transpose(inputs, perm=(0, 3, 1, 2))
 
-    # End_points collect relevant activations for external use.
+  # End_points collect relevant activations for external use. 
+  with slim.arg_scope([slim.conv2d], trainable=is_training):
     end_points = {}
     with tf.variable_scope(scope, 'ssd_300_vgg', [inputs], reuse=reuse):
         # Original VGG-16 blocks.
@@ -513,13 +515,14 @@ def ssd_net(inputs,
                                           num_classes,
                                           anchor_sizes[i],
                                           anchor_ratios[i],
-                                          normalizations[i])
+                                          normalizations[i],
+										  is_training=is_training)
             predictions.append(prediction_fn(p))
             logits.append(p)
             localisations.append(l)
-        end_points['logits'] = logits
-        end_points['predictions'] = predictions
-        end_points['localisations'] = localisations
+#        end_points['logits'] = logits
+#        end_points['predictions'] = predictions
+#        end_points['localisations'] = localisations
 
         return predictions, localisations, logits, end_points
 ssd_net.default_image_size = 300

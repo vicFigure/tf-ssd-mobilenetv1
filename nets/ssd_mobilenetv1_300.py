@@ -406,6 +406,7 @@ def ssd_multibox_layer(inputs,
                        sizes,
                        ratios=[1],
                        normalization=-1,
+                       is_training=True,
                        bn_normalization=False):
     """Construct a multibox layer, return a class and localization predictions.
     """
@@ -418,14 +419,14 @@ def ssd_multibox_layer(inputs,
     # Location.
     num_loc_pred = num_anchors * 4
     print("num_loc_pred", num_loc_pred)
-    loc_pred = slim.conv2d(net, num_loc_pred, [3, 3], activation_fn=None,
+    loc_pred = slim.conv2d(net, num_loc_pred, [3, 3], activation_fn=None, trainable=is_training,
                            scope='conv_loc')
     loc_pred = custom_layers.channel_to_last(loc_pred)
     loc_pred = tf.reshape(loc_pred,
                           tensor_shape(loc_pred, 4)[:-1]+[num_anchors, 4])
     # Class prediction.
     num_cls_pred = num_anchors * num_classes
-    cls_pred = slim.conv2d(net, num_cls_pred, [3, 3], activation_fn=None,
+    cls_pred = slim.conv2d(net, num_cls_pred, [3, 3], activation_fn=None, trainable=is_training,
                            scope='conv_cls')
     cls_pred = custom_layers.channel_to_last(cls_pred)
     cls_pred = tf.reshape(cls_pred,
@@ -471,25 +472,25 @@ def ssd_net(inputs,
         # Block 14/15/16/17: 1x1 and 3x3 convolutions stride 2 (except lasts).
         end_point = 'block14'
         with tf.variable_scope(end_point):
-            net = slim.conv2d(net, 256, [1, 1], biases_initializer=None, scope='conv1x1')
+            net = slim.conv2d(net, 256, [1, 1], biases_initializer=None, trainable=is_training, scope='conv1x1')
             net = custom_layers.pad2d(net, pad=(1, 1))
-            net = slim.conv2d(net, 512, [3, 3], biases_initializer=None, stride=2, scope='conv3x3', padding='VALID')
+            net = slim.conv2d(net, 512, [3, 3], biases_initializer=None, trainable=is_training, stride=2, scope='conv3x3', padding='VALID')
         end_points[end_point] = net
         end_point = 'block15'
         with tf.variable_scope(end_point):
-            net = slim.conv2d(net, 128, [1, 1], biases_initializer=None, scope='conv1x1')
+            net = slim.conv2d(net, 128, [1, 1], biases_initializer=None, trainable=is_training, scope='conv1x1')
             net = custom_layers.pad2d(net, pad=(1, 1))
-            net = slim.conv2d(net, 256, [3, 3], biases_initializer=None, stride=2, scope='conv3x3', padding='VALID')
+            net = slim.conv2d(net, 256, [3, 3], biases_initializer=None, trainable=is_training, stride=2, scope='conv3x3', padding='VALID')
         end_points[end_point] = net
         end_point = 'block16'
         with tf.variable_scope(end_point):
-            net = slim.conv2d(net, 128, [1, 1], biases_initializer=None, scope='conv1x1')
-            net = slim.conv2d(net, 256, [3, 3], biases_initializer=None, scope='conv3x3', padding='VALID')
+            net = slim.conv2d(net, 128, [1, 1], biases_initializer=None, trainable=is_training, scope='conv1x1')
+            net = slim.conv2d(net, 256, [3, 3], biases_initializer=None, trainable=is_training, scope='conv3x3', padding='VALID')
         end_points[end_point] = net
         end_point = 'block17'
         with tf.variable_scope(end_point):
-            net = slim.conv2d(net, 64, [1, 1], biases_initializer=None, scope='conv1x1')
-            net = slim.conv2d(net, 128, [3, 3], biases_initializer=None, scope='conv3x3', padding='VALID')
+            net = slim.conv2d(net, 64, [1, 1], biases_initializer=None, trainable=is_training, scope='conv1x1')
+            net = slim.conv2d(net, 128, [3, 3], biases_initializer=None, trainable=is_training, scope='conv3x3', padding='VALID')
         end_points[end_point] = net
 
         # Prediction and localisations layers.
@@ -504,7 +505,8 @@ def ssd_net(inputs,
                                           num_classes,
                                           anchor_sizes[i],
                                           anchor_ratios[i],
-                                          normalizations[i])
+                                          normalizations[i],
+										  is_training=is_training)
             predictions.append(prediction_fn(p))
             logits.append(p)
             localisations.append(l)
@@ -635,17 +637,17 @@ def ssd_losses(logits, localisations,
         fnmask = tf.cast(nmask, dtype)
 
         # Add cross-entropy loss.
-        N = n_positives + tf.cast(n_neg, dtype)
+        N_boxes = n_positives + tf.cast(n_neg, dtype)
         with tf.name_scope('cross_entropy_pos'):
             loss = tf.nn.sparse_softmax_cross_entropy_with_logits(logits=logits,
                                                                   labels=gclasses)
-            loss = tf.div(tf.reduce_sum(loss * fpmask), N, name='value')
+            loss = tf.div(tf.reduce_sum(loss * fpmask), batch_size, name='value')
             tf.losses.add_loss(loss)
 
         with tf.name_scope('cross_entropy_neg'):
             loss = tf.nn.sparse_softmax_cross_entropy_with_logits(logits=logits,
                                                                   labels=no_classes)
-            loss = tf.div(tf.reduce_sum(loss * fnmask), N, name='value')
+            loss = tf.div(tf.reduce_sum(loss * fnmask), batch_size, name='value')
             tf.losses.add_loss(loss)
 
         # Add localization loss: smooth L1, L2, ...

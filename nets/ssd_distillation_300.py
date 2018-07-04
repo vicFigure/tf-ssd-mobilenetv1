@@ -116,6 +116,12 @@ class SSDNet(object):
             self.teacher_kd_layer['predictions'] = teacher_r[0]
             self.teacher_kd_layer['localisations'] = teacher_r[1]
             self.teacher_endpoints = teacher_r[-1]
+            for item in self.teacher_kd_layer['logits']:
+                tf.stop_gradient(item)
+            for item in self.teacher_kd_layer['predictions']:
+                tf.stop_gradient(item)
+            for item in self.teacher_kd_layer['localisations']:
+                tf.stop_gradient(item)
         return student_r
 
     def arg_scope(self, weight_decay=0.0005, data_format='NHWC'):
