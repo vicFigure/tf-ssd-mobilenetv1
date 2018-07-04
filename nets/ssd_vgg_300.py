@@ -409,7 +409,7 @@ def ssd_multibox_layer(inputs,
     """
     net = inputs
     if normalization > 0:
-        net = custom_layers.l2_normalization(net, scaling=True)
+        net = custom_layers.l2_normalization(net, scaling=True, trainable=is_training)
     # Number of anchors.
     num_anchors = len(sizes) + len(ratios)
 

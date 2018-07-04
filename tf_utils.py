@@ -202,7 +202,6 @@ def get_init_fn_forKD(flags):
               "with SNAPPY.")
 
     variables_to_restore = {}
-#    variables = tf.global_variables() 
     variables = slim.get_model_variables()
     for var in variables:
       if not 'Teacher' in var.name:
