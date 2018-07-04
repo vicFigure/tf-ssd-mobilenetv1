@@ -262,6 +262,7 @@ class SSDNet(object):
                scope='ssd_losses'):
         """Define the SSD network losses.
         """
+        """
         ori_loss = self.student_model.losses(logits, localisations,
                           gclasses, glocalisations, gscores,
                           match_threshold=match_threshold,
@@ -269,6 +270,7 @@ class SSDNet(object):
                           alpha=alpha,
                           label_smoothing=label_smoothing,
                           scope=scope)
+        """
         if self.is_training:
           KD_loss = self.ssd_KD_loss(scope='KD_loss')
 
