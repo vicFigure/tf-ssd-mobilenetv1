@@ -121,7 +121,7 @@ class SSDNet(object):
                        [2, .5]],
         anchor_steps=[8, 16, 32, 64, 100, 300],
         anchor_offset=0.5,
-        normalizations=[-1, -1, -1, -1, -1, -1],
+        normalizations=[20, -1, -1, -1, -1, -1],
         prior_scaling=[0.1, 0.1, 0.2, 0.2]
         )
 
