@@ -12,8 +12,8 @@ from tensorflow.python import pywrap_tensorflow
 from tensorflow.python.ops import state_ops
 
 
-teacher_checkpoint = 'checkpoints/ssd_300_vgg/ssd_300_vgg.ckpt'
-kd_checkpoint = 'logs/kd_mobilenet/model.ckpt-402'
+teacher_checkpoint = 'logs/vgg/model.ckpt-5000'
+kd_checkpoint = 'logs/kd_mobilenet/model.ckpt-0'
 
 
 def no_use_var(name):
@@ -64,8 +64,11 @@ if __name__ == '__main__':
   for key in vars_teacher:
     num += 1
     key_split = key.split('/')
-    key_split[0] = 'Teacher'
-    kd_key = '/'.join(key_split)
+    if 'ssd' in key_split[0]:
+      key_split[0] = 'Teacher'
+      kd_key = '/'.join(key_split)
+    else:
+      kd_key = key
     teacher_value = vars_teacher[key]
     kd_value = vars_kd[kd_key]
     if (teacher_value == kd_value).all():
