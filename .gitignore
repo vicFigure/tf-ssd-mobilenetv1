@@ -1,0 +1,9 @@
+# Python
+*.pyc
+./.DS_Store
+
+#some files
+checkpoints
+logs
+tfrecords
+
