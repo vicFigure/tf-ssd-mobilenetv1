@@ -612,16 +612,16 @@ def ssd_losses(logits, localisations,
 
         # Compute positive matching mask...
         pmask = gscores > match_threshold
-        pmask = tf.logical_and(pmask, gclasses < 21) #My add, make sure pmask don't have the background
+        pmask = tf.logical_and(pmask, gclasses > 0) #My add, make sure pmask don't have the background
         fpmask = tf.cast(pmask, dtype)
         n_positives = tf.reduce_sum(fpmask)
 
         # Hard negative mining...
-        no_classes = 20*tf.ones(pmask.shape.as_list(), tf.int32) #My change, labeled background
+        no_classes = tf.zeros(pmask.shape.as_list(), tf.int32) #My change, labeled background
 #        no_classes = tf.cast(pmask, tf.int32)
         predictions = slim.softmax(logits)
         nmask = tf.logical_and(tf.logical_not(pmask),
-                               gscores > -0.5)
+                               gscores > -0.5) 
         fnmask = tf.cast(nmask, dtype)
         nvalues = tf.where(nmask,
                            predictions[:, 0],
@@ -643,6 +643,7 @@ def ssd_losses(logits, localisations,
         with tf.name_scope('cross_entropy_pos'):
             loss = tf.nn.sparse_softmax_cross_entropy_with_logits(logits=logits,
                                                                   labels=gclasses)
+            '''
             # My add according to the original paper
             val, indxes = tf.nn.top_k(loss, tf.cast(N_boxes, tf.int32))
             pmask = tf.logical_and(pmask, loss >= val[-1])
@@ -650,6 +651,7 @@ def ssd_losses(logits, localisations,
             nmask = tf.logical_and(nmask, loss >= val[-1])
             fnmask = tf.cast(nmask, dtype)
             N_boxes = tf.reduce_sum(fpmask + fnmask)
+            '''
             loss = tf.div(tf.reduce_sum(loss * fpmask), batch_size, name='value')
             tf.losses.add_loss(loss)
 

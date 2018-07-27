@@ -53,8 +53,7 @@ def tf_ssd_bboxes_encode_layer(labels,
 
     # Initialize tensors...
     shape = (yref.shape[0], yref.shape[1], href.size)
-    feat_labels = 20*tf.ones(shape, dtype=tf.int64)
-#    feat_labels = tf.zeros(shape, dtype=tf.int64)
+    feat_labels = tf.zeros(shape, dtype=tf.int64)
     feat_scores = tf.zeros(shape, dtype=dtype)
 
     feat_ymin = tf.zeros(shape, dtype=dtype)
@@ -113,7 +112,7 @@ def tf_ssd_bboxes_encode_layer(labels,
         # the jaccard cannot be negative, so we actually get all the biggest IOUs, and allocate one label to each anchor, but if an anchor whoes IOU with all labels are 0, then we don't allocate 21 (background) to that anchor, and donot update the score
         mask = tf.greater(jaccard, feat_scores)
         # mask = tf.logical_and(mask, tf.greater(jaccard, matching_threshold))
-        mask = tf.logical_and(mask, feat_scores > 0) # My change, originally is -0.5
+        mask = tf.logical_and(mask, feat_scores > -0.5) # My change, originally is -0.5
         mask = tf.logical_and(mask, label < num_classes)
         imask = tf.cast(mask, tf.int64)
         fmask = tf.cast(mask, dtype)
