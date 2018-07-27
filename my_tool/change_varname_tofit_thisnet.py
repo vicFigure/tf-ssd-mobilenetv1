@@ -13,9 +13,11 @@ from tensorflow.python.ops import state_ops
 
 
 input_checkpoint = 'ssd_mobilenet_v1_coco_11_06_2017/model.ckpt'
-input_checkpoint = 'mobilenet_v1_1.0_224/mobilenet_v1_1.0_224.ckpt'
 save_checkpoint = 'ssd_mobilenet_v1_coco_11_06_2017/ssd_myname_model.ckpt'
+input_checkpoint = 'mobilenet_v1_1.0_224/mobilenet_v1_1.0_224.ckpt'
 save_checkpoint = 'mobilenet_v1_1.0_224/mobilenetv1.ckpt'
+input_checkpoint = './vgg_16.ckpt'
+save_checkpoint = './vgg16.ckpt'
 
 
 def no_use(name):
@@ -74,12 +76,17 @@ def change_name(ori_name):
 def change_name_imagenet(ori_name):
     name = None
     name_split = ori_name.split('/')
+    '''
+    # For MobilenetV1 Net
     name_split[0] = 'MobilenetV1'
     name_split.insert(0, 'ssd_300_mobilenetv1')
     tmp_name = name_split[2].split('_')
     if len(tmp_name) > 1:
       block_num = tmp_name[1]
       name_split.insert(2, 'block%s'%block_num)
+    '''
+    # For Vgg Net
+    name_split[0] = 'ssd_300_vgg'
     
     name = '/'.join(name_split)
     return name
